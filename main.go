@@ -7,8 +7,8 @@ import (
 )
 
 func main() {
-	logger := log.Init(log.WithConfig("test.log").Build())
-	logger2 := log.Init(log.WithConfig("test-2.log").Build())
+	logger := log.New(log.WithConfig("test.log").Build())
+	logger2 := log.New(log.WithConfig("test-2.log").Build())
 
 	logger.Info(context.Background(), "boom")
 	logger.Debug(context.Background(), "debug %v", 23)
