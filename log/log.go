@@ -50,7 +50,7 @@ func WithConfig(logPath string) *ConfigBuilder {
 
 //Build builds config
 func (b ConfigBuilder) Build() *Config {
-	c := &Config{LogPath: b.LogPath}
+	c := &Config{LogPath: b.LogPath, MaxAge: b.MaxAge, MaxBackups: b.MaxBackups, MaxSize: b.MaxSize}
 	if b.MaxAge == 0 {
 		c.MaxAge = 7
 	}

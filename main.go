@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	logger := log.New(log.WithConfig("test.log").Build())
+	logger := log.New(log.WithConfig("test.log").WithMaxSize(20).WithMaxAge(7).Build())
 	logger2 := log.New(log.WithConfig("test-2.log").Build())
 
 	logger.Info(context.Background(), "boom")
