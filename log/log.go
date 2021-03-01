@@ -7,22 +7,33 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	lj "gopkg.in/natefinch/lumberjack.v2"
 )
 
 type contextKey string
 
-//Logger logger
-type Logger struct {
+type fileLogger struct {
 	_l *log.Logger
+}
+
+//Logger logger
+type Logger interface {
+	Info(ctx context.Context, format string, args ...interface{})
+	Error(ctx context.Context, format string, args ...interface{})
+	Warning(ctx context.Context, format string, args ...interface{})
+	Debug(ctx context.Context, format string, args ...interface{})
+	Panicf(ctx context.Context, format string, arg ...interface{})
 }
 
 const (
 	//ReqID request id
 	ReqID contextKey = "reqID"
 	//UserKey user key
-	UserKey contextKey = "user"
+	UserKey        contextKey = "user"
+	fileFormatter             = "|%v|%v|%v|%v"
+	printFormatter            = "%v |%v|%v|%v|%v"
 )
 
 //Config configuration
@@ -82,7 +93,7 @@ func (b *ConfigBuilder) WithMaxBackups(s int) *ConfigBuilder {
 }
 
 //New inits logger
-func New(cfg *Config) *Logger {
+func New(cfg *Config) (Logger, error) {
 	lumber := &lj.Logger{
 		Filename:   cfg.LogPath,
 		MaxSize:    cfg.MaxSize, // megabytes
@@ -91,48 +102,55 @@ func New(cfg *Config) *Logger {
 	}
 	f, err := os.OpenFile(cfg.LogPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		panic(fmt.Sprintf("Could not create/open log file, %v", err))
+		fmt.Printf("Could not create/open log file - will use print logger, %v\n", err)
+		return &printLogger{}, err
 	}
 	defer f.Close()
 	_logger := log.New(f, "", log.Ldate|log.Ltime)
 	mw := io.MultiWriter(os.Stdout, lumber)
 	_logger.SetOutput(mw)
-	out := &Logger{_l: _logger}
+	out := &fileLogger{_l: _logger}
 	out.Info(context.Background(), "Initialized logger with configuration %v", cfg)
-	return out
+	return out, nil
 }
 
 //Info info
-func (l Logger) Info(ctx context.Context, format string, args ...interface{}) {
-	l._log(ctx, "INFO", format, args...)
+func (l fileLogger) Info(ctx context.Context, format string, args ...interface{}) {
+	_log(ctx, l, "INFO", format, args...)
 }
 
 //Error error
-func (l Logger) Error(ctx context.Context, format string, args ...interface{}) {
-	l._log(ctx, "ERROR", format, args...)
+func (l fileLogger) Error(ctx context.Context, format string, args ...interface{}) {
+	_log(ctx, l, "ERROR", format, args...)
 }
 
 //Warning warning
-func (l Logger) Warning(ctx context.Context, format string, args ...interface{}) {
-	l._log(ctx, "WARN", format, args...)
+func (l fileLogger) Warning(ctx context.Context, format string, args ...interface{}) {
+	_log(ctx, l, "WARN", format, args...)
 }
 
 //Debug debug
-func (l Logger) Debug(ctx context.Context, format string, args ...interface{}) {
-	l._log(ctx, "DEBUG", format, args...)
-}
-
-func (l Logger) _log(ctx context.Context, level string, msg string, args ...interface{}) {
-	var user, req string
-	user, _ = ctx.Value(UserKey).(string)
-	req, _ = ctx.Value(ReqID).(string)
-	formatter := "|%v|%v|%v|%v"
-	m := fmt.Sprintf(msg, args...)
-	l._l.Printf(formatter, strings.ToLower(user), req, level, m)
+func (l fileLogger) Debug(ctx context.Context, format string, args ...interface{}) {
+	_log(ctx, l, "DEBUG", format, args...)
 }
 
 //Panicf panics
-func (l Logger) Panicf(ctx context.Context, format string, arg ...interface{}) {
+func (l fileLogger) Panicf(ctx context.Context, format string, arg ...interface{}) {
 	l.Error(ctx, format, arg...)
 	panic(fmt.Sprintf(format, arg...))
+}
+
+func _log(ctx context.Context, l Logger, level string, msg string, args ...interface{}) {
+	var user, req string
+	user, _ = ctx.Value(UserKey).(string)
+	req, _ = ctx.Value(ReqID).(string)
+	m := fmt.Sprintf(msg, args...)
+	switch v := l.(type) {
+	case fileLogger:
+		v._l.Printf(fileFormatter, strings.ToLower(user), req, level, m)
+	case printLogger:
+		date := time.Now().Format("2006/01/01 15:04:05")
+		fmt.Printf(printFormatter+"\n", date, strings.ToLower(user), req, level, m)
+	}
+
 }
