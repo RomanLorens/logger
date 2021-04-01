@@ -7,6 +7,11 @@ import (
 
 type printLogger struct{}
 
+//PrintLogger print logger
+func PrintLogger() Logger {
+	return &printLogger{}
+}
+
 //Info info
 func (l printLogger) Info(ctx context.Context, format string, args ...interface{}) {
 	_log(ctx, l, "INFO", format, args...)
