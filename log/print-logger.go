@@ -5,11 +5,18 @@ import (
 	"fmt"
 )
 
-type printLogger struct{}
+type printLogger struct {
+	withLogName bool
+	format      string
+}
 
 //PrintLogger print logger
-func PrintLogger() Logger {
-	return &printLogger{}
+func PrintLogger(ln bool) Logger {
+	format := printFormatter
+	if ln {
+		format += "|%v"
+	}
+	return &printLogger{withLogName: ln, format: format}
 }
 
 //Info info

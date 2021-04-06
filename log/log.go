@@ -15,7 +15,9 @@ import (
 type contextKey string
 
 type fileLogger struct {
-	_l *log.Logger
+	_l          *log.Logger
+	withLogName bool
+	format      string
 }
 
 //Logger logger
@@ -31,9 +33,14 @@ const (
 	//ReqID request id
 	ReqID contextKey = "reqID"
 	//UserKey user key
-	UserKey        contextKey = "user"
-	fileFormatter             = "|%v|%v|%v|%v"
-	printFormatter            = "%v |%v|%v|%v|%v"
+	UserKey contextKey = "user"
+	//LogName logger name
+	LogName contextKey = "logName"
+)
+
+var (
+	fileFormatter  = "|%v|%v|%v|%v"
+	printFormatter = "%v |%v|%v|%v|%v"
 )
 
 //Config configuration
@@ -45,11 +52,18 @@ type Config struct {
 	MaxBackups int
 	//MaxAge in days
 	MaxAge int
+	//LogName log name optional
+	LogName bool
 }
 
 //ConfigBuilder builder
 type ConfigBuilder struct {
 	Config
+}
+
+type kv struct {
+	Key   string
+	Value int
 }
 
 //WithConfig config builder
@@ -61,7 +75,7 @@ func WithConfig(logPath string) *ConfigBuilder {
 
 //Build builds config
 func (b ConfigBuilder) Build() *Config {
-	c := &Config{LogPath: b.LogPath, MaxAge: b.MaxAge, MaxBackups: b.MaxBackups, MaxSize: b.MaxSize}
+	c := &Config{LogPath: b.LogPath, MaxAge: b.MaxAge, MaxBackups: b.MaxBackups, MaxSize: b.MaxSize, LogName: b.LogName}
 	if c.MaxAge == 0 {
 		c.MaxAge = 7
 	}
@@ -77,6 +91,12 @@ func (b ConfigBuilder) Build() *Config {
 //WithMaxSize max size in MB
 func (b *ConfigBuilder) WithMaxSize(s int) *ConfigBuilder {
 	b.MaxSize = s
+	return b
+}
+
+//WithLogName format tokens
+func (b *ConfigBuilder) WithLogName(l bool) *ConfigBuilder {
+	b.LogName = l
 	return b
 }
 
@@ -103,13 +123,18 @@ func New(cfg *Config) (Logger, error) {
 	f, err := os.OpenFile(cfg.LogPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Printf("Could not create/open log file - will use print logger, %v\n", err)
-		return &printLogger{}, err
+		return PrintLogger(cfg.LogName), err
 	}
 	defer f.Close()
 	_logger := log.New(f, "", log.Ldate|log.Ltime)
 	mw := io.MultiWriter(os.Stdout, lumber)
 	_logger.SetOutput(mw)
-	out := &fileLogger{_l: _logger}
+
+	format := fileFormatter
+	if cfg.LogName {
+		format += "|%v"
+	}
+	out := &fileLogger{_l: _logger, withLogName: cfg.LogName, format: format}
 	out.Info(context.Background(), "Initialized logger with configuration %v", cfg)
 	return out, nil
 }
@@ -141,16 +166,24 @@ func (l fileLogger) Panicf(ctx context.Context, format string, arg ...interface{
 }
 
 func _log(ctx context.Context, l Logger, level string, msg string, args ...interface{}) {
-	var user, req string
+	m := fmt.Sprintf(msg, args...)
+	var user, req, logName string
 	user, _ = ctx.Value(UserKey).(string)
 	req, _ = ctx.Value(ReqID).(string)
-	m := fmt.Sprintf(msg, args...)
+	logName, _ = ctx.Value(LogName).(string)
 	switch v := l.(type) {
 	case fileLogger:
-		v._l.Printf(fileFormatter, strings.ToLower(user), req, level, m)
+		if v.withLogName {
+			v._l.Printf(v.format, strings.ToLower(user), req, level, logName, m)
+		} else {
+			v._l.Printf(v.format, strings.ToLower(user), req, level, m)
+		}
 	case printLogger:
 		date := time.Now().Format("2006/01/01 15:04:05")
-		fmt.Printf(printFormatter+"\n", date, strings.ToLower(user), req, level, m)
+		if v.withLogName {
+			fmt.Printf(v.format+"\n", date, strings.ToLower(user), req, level, logName, m)
+		} else {
+			fmt.Printf(v.format+"\n", date, strings.ToLower(user), req, level, m)
+		}
 	}
-
 }
