@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	lj "gopkg.in/natefinch/lumberjack.v2"
@@ -136,7 +137,15 @@ func New(cfg *Config) (Logger, error) {
 	}
 	out := &fileLogger{_l: _logger, withLogName: cfg.LogName, format: format}
 	out.Info(context.Background(), "Initialized logger with configuration %v", cfg)
+	logUncaughtPanic(f, out)
 	return out, nil
+}
+
+func logUncaughtPanic(f *os.File, l Logger) {
+	err := syscall.Dup2(int(f.Fd()), int(os.Stderr.Fd()))
+	if err != nil {
+		l.Panicf(context.Background(), "panic %v", err)
+	}
 }
 
 //Info info
