@@ -136,7 +136,7 @@ func New(cfg *Config) (Logger, error) {
 	}
 	out := &fileLogger{_l: _logger, withLogName: cfg.LogName, format: format}
 	out.Info(context.Background(), "Initialized logger with configuration %v", cfg)
-	logUncaughtPanic(f, out)
+
 	return out, nil
 }
 

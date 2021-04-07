@@ -9,7 +9,6 @@ import (
 func main() {
 	logger, _ := log.New(log.WithConfig("test.log").
 		WithMaxSize(10).WithMaxBackups(8).Build())
-	panic("panic...")
 	logger2, _ := log.New(log.WithConfig("test-2.log").WithLogName(true).Build())
 
 	pl := log.PrintLogger(false)
